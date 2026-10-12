@@ -10,10 +10,12 @@ WARTOSC_TLO = 0
 WARTOSC_SKORA = 1
 WARTOSC_ZMIANA = 2
 MINIMALNE_POLE_MYSZY = 10000
+KATALOG_SKRYPTU = os.path.dirname(os.path.abspath(__file__))
+KATALOG_WYNIKOW = os.path.join(KATALOG_SKRYPTU, 'scores')
 
 
 def wczytaj_csv(nazwa_pliku):
-    sciezka = os.path.join(os.getcwd(), nazwa_pliku)
+    sciezka = nazwa_pliku if os.path.isabs(nazwa_pliku) else os.path.join(KATALOG_SKRYPTU, nazwa_pliku)
     if not os.path.exists(sciezka):
         raise FileNotFoundError(f"Brak pliku: {nazwa_pliku}")
     return pd.read_csv(sciezka, sep=';')
@@ -21,8 +23,9 @@ def wczytaj_csv(nazwa_pliku):
 
 def znajdz_plik(nazwy_plikow):
     for nazwa in nazwy_plikow:
-        if os.path.exists(nazwa):
-            return nazwa
+        sciezka = os.path.join(KATALOG_SKRYPTU, nazwa)
+        if os.path.exists(sciezka):
+            return sciezka
     return None
 
 
@@ -73,8 +76,8 @@ def porownaj_grupy(df_choroba, df_kontrola):
     t_stat, p_val_t = stats.ttest_ind(wyniki_veh, wyniki_trap1)
     u_stat, p_val_m = stats.mannwhitneyu(wyniki_veh, wyniki_trap1)
 
-    print(f"Średnia choroba: {wyniki_veh.mean():.1f}%")
-    print(f"Średnia kontrola: {wyniki_trap1.mean():.1f}%\n")
+    print(f"veh_new_2: {wyniki_veh.mean():.1f}% ± {wyniki_veh.std():.1f}% SD (n={len(wyniki_veh)})")
+    print(f"trap1_new_2: {wyniki_trap1.mean():.1f}% ± {wyniki_trap1.std():.1f}% SD (n={len(wyniki_trap1)})\n")
 
     print(f"Wynik testu t-Studenta (p-value): {p_val_t:.4f}")
     print(f"Wynik testu Manna-Whitneya (p-value): {p_val_m:.4f}\n")
@@ -85,8 +88,20 @@ def porownaj_grupy(df_choroba, df_kontrola):
         print("Brak istotności statystycznej (p >= 0.05).")
 
 
-# 1. Najpierw spróbuj odczytać pliki CSV
-if os.path.exists('wyniki_veh.csv') and os.path.exists('wyniki_trap1.csv'):
+# Najpierw użyj wyników dla nowych masek; zachowaj obsługę starszych plików.
+plik_veh_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_veh_new_2.csv')
+plik_trap1_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_trap1_new_2.csv')
+if os.path.exists(plik_veh_csv) and os.path.exists(plik_trap1_csv):
+    df_choroba = wczytaj_csv(plik_veh_csv)
+    df_kontrola = wczytaj_csv(plik_trap1_csv)
+
+    if 'Score (%)' not in df_choroba.columns or 'Score (%)' not in df_kontrola.columns:
+        raise ValueError("Pliki CSV muszą zawierać kolumnę 'Score (%)'.")
+
+    print("Porównanie wyników: wyniki_veh_new_2.csv i wyniki_trap1_new_2.csv")
+    porownaj_grupy(df_choroba, df_kontrola)
+
+elif os.path.exists(os.path.join(KATALOG_SKRYPTU, 'wyniki_veh.csv')) and os.path.exists(os.path.join(KATALOG_SKRYPTU, 'wyniki_trap1.csv')):
     df_choroba = wczytaj_csv('wyniki_veh.csv')
     df_kontrola = wczytaj_csv('wyniki_trap1.csv')
 

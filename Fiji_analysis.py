@@ -13,7 +13,7 @@ WARTOSC_ZMIANA = 2
 KATALOG_SKRYPTU = os.path.dirname(os.path.abspath(__file__))
 KATALOG_DANYCH = os.path.join(KATALOG_SKRYPTU, 'data')
 KATALOG_WYNIKOW = os.path.join(KATALOG_SKRYPTU, 'scores')
-plik_maski = os.path.join(KATALOG_DANYCH, 'trap1.tif')
+plik_maski = os.path.join(KATALOG_DANYCH, 'veh_new_2.tif')
 # ========================
 
 def uruchom_analize():
