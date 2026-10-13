@@ -31,7 +31,7 @@ Porównuje score dwóch grup. W pierwszej kolejności odczytuje `scores/wyniki_v
 - kontrola: `vehicle.tif` lub `vehicle.tiff`,
 - choroba: `maska_wynik.tif`, `maska_wynik.tiff` lub `maska_wyniki.tiff`.
 
-Dla masek używa tych samych wartości klas co `Fiji_analysis.py`, ale odrzuca kontury o polu nie większym niż 10000 px. Raportuje średnią ± SD i liczebność obu grup oraz wyniki testu t-Studenta i testu Manna–Whitneya. Wniosek o istotności statystycznej opiera na teście Manna–Whitneya przy progu `p < 0,05`.
+Dla masek używa tych samych wartości klas co `Fiji_analysis.py`, ale odrzuca kontury o polu nie większym niż 10000 px. Raportuje średnią ± SD i liczebność obu grup oraz wyniki testu t-Studenta i testu Manna–Whitneya. Wniosek o istotności statystycznej opiera na teście Manna–Whitneya przy progu `p < 0,05`. Zapisuje też wykres słupkowy wyników każdej myszy do `scores/podsumowanie_wynikow_czerwony_niebieski.png` oraz boxplot z punktami i wartościami p do `scores/statystyka_boxplot_pvalue_czerwony_niebieski.png`.
 
 Skrypt szuka plików wejściowych względem katalogu projektu, niezależnie od bieżącego katalogu roboczego.
 
@@ -42,7 +42,7 @@ Projekt korzysta z Pythona oraz bibliotek OpenCV, NumPy, pandas, Pillow i SciPy.
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install opencv-python numpy pandas pillow scipy
+python -m pip install opencv-python numpy pandas pillow scipy matplotlib
 ```
 
 Uruchom wybrany skrypt:

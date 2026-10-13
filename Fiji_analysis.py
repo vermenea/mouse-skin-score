@@ -13,7 +13,7 @@ WARTOSC_ZMIANA = 2
 KATALOG_SKRYPTU = os.path.dirname(os.path.abspath(__file__))
 KATALOG_DANYCH = os.path.join(KATALOG_SKRYPTU, 'data')
 KATALOG_WYNIKOW = os.path.join(KATALOG_SKRYPTU, 'scores')
-plik_maski = os.path.join(KATALOG_DANYCH, 'veh_new_2.tif')
+plik_maski = os.path.join(KATALOG_DANYCH, 'trap1_new_2.tif')
 # ========================
 
 def uruchom_analize():
@@ -75,7 +75,7 @@ def uruchom_analize():
     if wyniki:
         df = pd.DataFrame(wyniki)
         os.makedirs(KATALOG_WYNIKOW, exist_ok=True)
-        plik_wynikow = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu.csv')
+        plik_wynikow = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_trap1.csv')
         df.to_csv(plik_wynikow, index=False, sep=';')
         print(f"\nZapisano wyniki do pliku: {plik_wynikow}")
         

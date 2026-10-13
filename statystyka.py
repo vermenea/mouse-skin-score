@@ -1,5 +1,6 @@
 import os
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -69,15 +70,17 @@ def analiza_maszyn_z_tiff(sciezka):
     return np.array(wyniki, dtype=float)
 
 
-def porownaj_grupy(df_choroba, df_kontrola):
+def porownaj_grupy(df_choroba, df_kontrola, nazwa_choroba='veh_new_2', nazwa_kontrola='trap1_new_2'):
     wyniki_veh = df_choroba['Score (%)']
     wyniki_trap1 = df_kontrola['Score (%)']
 
     t_stat, p_val_t = stats.ttest_ind(wyniki_veh, wyniki_trap1)
     u_stat, p_val_m = stats.mannwhitneyu(wyniki_veh, wyniki_trap1)
 
-    print(f"veh_new_2: {wyniki_veh.mean():.1f}% ± {wyniki_veh.std():.1f}% SD (n={len(wyniki_veh)})")
-    print(f"trap1_new_2: {wyniki_trap1.mean():.1f}% ± {wyniki_trap1.std():.1f}% SD (n={len(wyniki_trap1)})\n")
+    generuj_wykresy(df_choroba, df_kontrola, nazwa_choroba, nazwa_kontrola, p_val_t, p_val_m)
+
+    print(f"{nazwa_choroba}: {wyniki_veh.mean():.1f}% ± {wyniki_veh.std():.1f}% SD (n={len(wyniki_veh)})")
+    print(f"{nazwa_kontrola}: {wyniki_trap1.mean():.1f}% ± {wyniki_trap1.std():.1f}% SD (n={len(wyniki_trap1)})\n")
 
     print(f"Wynik testu t-Studenta (p-value): {p_val_t:.4f}")
     print(f"Wynik testu Manna-Whitneya (p-value): {p_val_m:.4f}\n")
@@ -88,10 +91,107 @@ def porownaj_grupy(df_choroba, df_kontrola):
         print("Brak istotności statystycznej (p >= 0.05).")
 
 
-# Najpierw użyj wyników dla nowych masek; zachowaj obsługę starszych plików.
-plik_veh_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_veh_new_2.csv')
-plik_trap1_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_trap1_new_2.csv')
-if os.path.exists(plik_veh_csv) and os.path.exists(plik_trap1_csv):
+def generuj_wykresy(df_choroba, df_kontrola, nazwa_choroba, nazwa_kontrola, p_val_t, p_val_m):
+    os.makedirs(KATALOG_WYNIKOW, exist_ok=True)
+    kolory = ['#d62728', '#1f77b4']
+    grupy = [
+        (df_choroba, nazwa_choroba, kolory[0]),
+        (df_kontrola, nazwa_kontrola, kolory[1]),
+    ]
+    mapy_wynikow = []
+    etykiety_myszy = []
+
+    for df, _, _ in grupy:
+        etykiety = df['Mysz'].astype(str).tolist() if 'Mysz' in df.columns else [
+            f'M{i}' for i in range(1, len(df) + 1)
+        ]
+        wyniki = df['Score (%)'].astype(float).tolist()
+        mapa = dict(zip(etykiety, wyniki))
+        if len(mapa) != len(etykiety):
+            raise ValueError("Kolumna 'Mysz' nie może zawierać powtarzających się identyfikatorów.")
+        mapy_wynikow.append(mapa)
+        for etykieta in etykiety:
+            if etykieta not in etykiety_myszy:
+                etykiety_myszy.append(etykieta)
+
+    x = np.arange(len(etykiety_myszy))
+    szerokosc = 0.36
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for i, (grupa, nazwa, kolor) in enumerate(grupy):
+        wartosci = [mapy_wynikow[i].get(etykieta, np.nan) for etykieta in etykiety_myszy]
+        slupki = ax.bar(x + (i - 0.5) * szerokosc, wartosci, szerokosc, label=nazwa,
+                        color=kolor, edgecolor='black')
+        for slupek, wartosc in zip(slupki, wartosci):
+            if not np.isnan(wartosc):
+                ax.annotate(f'{wartosc:.1f}%', (slupek.get_x() + slupek.get_width() / 2, wartosc),
+                            xytext=(0, 5), textcoords='offset points', ha='center', va='bottom')
+
+    ax.set_title('Porównanie score dla każdej myszy')
+    ax.set_ylabel('Score (%)')
+    ax.set_xticks(x, etykiety_myszy)
+    ax.legend()
+    ax.yaxis.grid(True, linestyle='--', alpha=0.4)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig(os.path.join(KATALOG_WYNIKOW, 'podsumowanie_wynikow_czerwony_niebieski.png'),
+                dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+    boxplot = ax.boxplot(
+        [df_choroba['Score (%)'].astype(float), df_kontrola['Score (%)'].astype(float)],
+        tick_labels=[nazwa_choroba, nazwa_kontrola],
+        patch_artist=True,
+        showfliers=False,
+    )
+    for pudelko, kolor in zip(boxplot['boxes'], kolory):
+        pudelko.set_facecolor(kolor)
+        pudelko.set_alpha(0.8)
+
+    generator = np.random.default_rng(0)
+    for i, (df, _, kolor) in enumerate(grupy, start=1):
+        wartosci = df['Score (%)'].astype(float).to_numpy()
+        jitter = generator.uniform(-0.08, 0.08, size=len(wartosci))
+        ax.scatter(i + jitter, wartosci, color='black', alpha=0.75, zorder=3)
+        ax.annotate(f'średnia {wartosci.mean():.1f}%', (i, wartosci.max()),
+                    xytext=(0, 8), textcoords='offset points', ha='center')
+
+    dol, gora = ax.get_ylim()
+    zakres = max(gora - dol, 1)
+    ax.set_ylim(dol, gora + zakres * 0.3)
+    ax.text(
+        0.5, 0.98,
+        f'p (t-test) = {p_val_t:.4f}\np (M-W) = {p_val_m:.4f}',
+        transform=ax.transAxes, ha='center', va='top',
+        bbox={'facecolor': 'white', 'edgecolor': '#bdbdbd', 'boxstyle': 'square,pad=0.5'},
+    )
+    ax.set_title('Rozkład score w grupach')
+    ax.set_ylabel('Score (%)')
+    ax.yaxis.grid(True, linestyle='--', alpha=0.4)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig(os.path.join(KATALOG_WYNIKOW, 'statystyka_boxplot_pvalue_czerwony_niebieski.png'),
+                dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+
+# Najpierw użyj wskazanych wyników scoringu.
+plik_scoringu_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu.csv')
+plik_scoringu_trap1_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_trap1.csv')
+if os.path.exists(plik_scoringu_csv) and os.path.exists(plik_scoringu_trap1_csv):
+    df_choroba = wczytaj_csv(plik_scoringu_csv)
+    df_kontrola = wczytaj_csv(plik_scoringu_trap1_csv)
+
+    if 'Score (%)' not in df_choroba.columns or 'Score (%)' not in df_kontrola.columns:
+        raise ValueError("Pliki CSV muszą zawierać kolumnę 'Score (%)'.")
+
+    print("Porównanie wyników: wyniki_scoringu.csv i wyniki_scoringu_trap1.csv")
+    porownaj_grupy(df_choroba, df_kontrola, 'veh', 'trap1')
+
+# Zachowaj obsługę wyników dla nowych masek oraz starszych plików.
+elif os.path.exists(os.path.join(KATALOG_WYNIKOW, 'wyniki_veh_new_2.csv')) and os.path.exists(os.path.join(KATALOG_WYNIKOW, 'wyniki_trap1_new_2.csv')):
+    plik_veh_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_veh_new_2.csv')
+    plik_trap1_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_trap1_new_2.csv')
     df_choroba = wczytaj_csv(plik_veh_csv)
     df_kontrola = wczytaj_csv(plik_trap1_csv)
 
