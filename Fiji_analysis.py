@@ -13,13 +13,16 @@ WARTOSC_ZMIANA = 2
 KATALOG_SKRYPTU = os.path.dirname(os.path.abspath(__file__))
 KATALOG_DANYCH = os.path.join(KATALOG_SKRYPTU, 'data')
 KATALOG_WYNIKOW = os.path.join(KATALOG_SKRYPTU, 'scores')
-plik_maski = os.path.join(KATALOG_DANYCH, 'trap1_new_2.tif')
+MASKI_DO_ANALIZY = [
+    ('17', '17_mask.tif', 'wyniki_scoringu_17_mask.csv'),
+    ('veh', 'veh_mask.tif', 'wyniki_scoringu_veh_mask.csv'),
+]
 # ========================
 
-def uruchom_analize():
+
+def analizuj_maske(plik_maski, nazwa_grupy, nazwa_wynikow):
     if not os.path.exists(plik_maski):
-        print(f"BŁĄD: Nie znaleziono pliku '{plik_maski}'.")
-        return
+        raise FileNotFoundError(f"Nie znaleziono pliku maski: {plik_maski}")
 
     # Używamy PIL, aby odczytać surowe indeksy klas (0, 1, 2)
     img = Image.open(plik_maski)
@@ -75,13 +78,22 @@ def uruchom_analize():
     if wyniki:
         df = pd.DataFrame(wyniki)
         os.makedirs(KATALOG_WYNIKOW, exist_ok=True)
-        plik_wynikow = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_trap1.csv')
+        plik_wynikow = os.path.join(KATALOG_WYNIKOW, nazwa_wynikow)
         df.to_csv(plik_wynikow, index=False, sep=';')
         print(f"\nZapisano wyniki do pliku: {plik_wynikow}")
         
         srednia = df["Score (%)"].mean()
         odchylenie = df["Score (%)"].std()
-        print(f"Średnia ± SD dla całej grupy: {srednia:.1f}% ± {odchylenie:.1f}%")
+        print(f"Średnia ± SD dla grupy {nazwa_grupy}: {srednia:.1f}% ± {odchylenie:.1f}%")
+    else:
+        raise ValueError(f"Nie znaleziono myszy do analizy w masce: {plik_maski}")
+
+
+def uruchom_analize():
+    for nazwa_grupy, nazwa_maski, nazwa_wynikow in MASKI_DO_ANALIZY:
+        sciezka_maski = os.path.join(KATALOG_DANYCH, nazwa_maski)
+        print(f"\nAnaliza grupy {nazwa_grupy}: {sciezka_maski}")
+        analizuj_maske(sciezka_maski, nazwa_grupy, nazwa_wynikow)
 
 if __name__ == "__main__":
     uruchom_analize()

@@ -70,14 +70,23 @@ def analiza_maszyn_z_tiff(sciezka):
     return np.array(wyniki, dtype=float)
 
 
-def porownaj_grupy(df_choroba, df_kontrola, nazwa_choroba='veh_new_2', nazwa_kontrola='trap1_new_2'):
+def porownaj_grupy(
+    df_choroba,
+    df_kontrola,
+    nazwa_choroba='veh_new_2',
+    nazwa_kontrola='trap1_new_2',
+    suffix_wykresu='',
+):
     wyniki_veh = df_choroba['Score (%)']
     wyniki_trap1 = df_kontrola['Score (%)']
 
     t_stat, p_val_t = stats.ttest_ind(wyniki_veh, wyniki_trap1)
     u_stat, p_val_m = stats.mannwhitneyu(wyniki_veh, wyniki_trap1)
 
-    generuj_wykresy(df_choroba, df_kontrola, nazwa_choroba, nazwa_kontrola, p_val_t, p_val_m)
+    generuj_wykresy(
+        df_choroba, df_kontrola, nazwa_choroba, nazwa_kontrola, p_val_t, p_val_m,
+        suffix_wykresu,
+    )
 
     print(f"{nazwa_choroba}: {wyniki_veh.mean():.1f}% ± {wyniki_veh.std():.1f}% SD (n={len(wyniki_veh)})")
     print(f"{nazwa_kontrola}: {wyniki_trap1.mean():.1f}% ± {wyniki_trap1.std():.1f}% SD (n={len(wyniki_trap1)})\n")
@@ -85,13 +94,22 @@ def porownaj_grupy(df_choroba, df_kontrola, nazwa_choroba='veh_new_2', nazwa_kon
     print(f"Wynik testu t-Studenta (p-value): {p_val_t:.4f}")
     print(f"Wynik testu Manna-Whitneya (p-value): {p_val_m:.4f}\n")
 
-    if p_val_m < 0.05:
-        print("Różnica jest istotna statystycznie (p < 0.05).")
-    else:
-        print("Brak istotności statystycznej (p >= 0.05).")
+    print(
+        "Test t-Studenta: różnica istotna statystycznie (p < 0.05)."
+        if p_val_t < 0.05
+        else "Test t-Studenta: brak istotności statystycznej (p >= 0.05)."
+    )
+    print(
+        "Test Manna-Whitneya: różnica istotna statystycznie (p < 0.05)."
+        if p_val_m < 0.05
+        else "Test Manna-Whitneya: brak istotności statystycznej (p >= 0.05)."
+    )
 
 
-def generuj_wykresy(df_choroba, df_kontrola, nazwa_choroba, nazwa_kontrola, p_val_t, p_val_m):
+def generuj_wykresy(
+    df_choroba, df_kontrola, nazwa_choroba, nazwa_kontrola, p_val_t, p_val_m,
+    suffix_wykresu='',
+):
     os.makedirs(KATALOG_WYNIKOW, exist_ok=True)
     kolory = ['#d62728', '#1f77b4']
     grupy = [
@@ -133,7 +151,10 @@ def generuj_wykresy(df_choroba, df_kontrola, nazwa_choroba, nazwa_kontrola, p_va
     ax.yaxis.grid(True, linestyle='--', alpha=0.4)
     ax.set_axisbelow(True)
     fig.tight_layout()
-    fig.savefig(os.path.join(KATALOG_WYNIKOW, 'podsumowanie_wynikow_czerwony_niebieski.png'),
+    fig.savefig(os.path.join(
+        KATALOG_WYNIKOW,
+        f'podsumowanie_wynikow_czerwony_niebieski{suffix_wykresu}.png',
+    ),
                 dpi=300, bbox_inches='tight')
     plt.close(fig)
 
@@ -170,15 +191,111 @@ def generuj_wykresy(df_choroba, df_kontrola, nazwa_choroba, nazwa_kontrola, p_va
     ax.yaxis.grid(True, linestyle='--', alpha=0.4)
     ax.set_axisbelow(True)
     fig.tight_layout()
-    fig.savefig(os.path.join(KATALOG_WYNIKOW, 'statystyka_boxplot_pvalue_czerwony_niebieski.png'),
+    fig.savefig(os.path.join(
+        KATALOG_WYNIKOW,
+        f'statystyka_boxplot_pvalue_czerwony_niebieski{suffix_wykresu}.png',
+    ),
+                dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(7, 6))
+    srednie = [
+        df['Score (%)'].astype(float).mean()
+        for df, _, _ in grupy
+    ]
+    odchylenia = [
+        df['Score (%)'].astype(float).std()
+        for df, _, _ in grupy
+    ]
+    slupki = ax.bar(
+        [nazwa for _, nazwa, _ in grupy],
+        srednie,
+        yerr=odchylenia,
+        capsize=6,
+        color=[kolor for _, _, kolor in grupy],
+        edgecolor='black',
+        alpha=0.8,
+    )
+
+    generator = np.random.default_rng(0)
+    for i, (df, _, _) in enumerate(grupy):
+        wartosci = df['Score (%)'].astype(float).to_numpy()
+        jitter = generator.uniform(-0.08, 0.08, size=len(wartosci))
+        ax.scatter(i + jitter, wartosci, color='black', zorder=3)
+
+    wysokosc = max(
+        max(df['Score (%)'].astype(float).max() for df, _, _ in grupy),
+        max(srednie[i] + (odchylenia[i] if np.isfinite(odchylenia[i]) else 0)
+            for i in range(len(grupy))),
+    )
+    rozstep = max(wysokosc, 1) * 0.08
+    y_nawiasu = wysokosc + rozstep * 2
+    ax.plot(
+        [0, 0, 1, 1],
+        [y_nawiasu, y_nawiasu + rozstep, y_nawiasu + rozstep, y_nawiasu],
+        color='black',
+        linewidth=1.2,
+    )
+    oznaczenie = (
+        '***' if p_val_m < 0.001 else
+        '**' if p_val_m < 0.01 else
+        '*' if p_val_m < 0.05 else
+        'ns'
+    )
+    ax.text(
+        0.5, y_nawiasu + rozstep * 1.1, oznaczenie,
+        ha='center', va='bottom', fontsize=14,
+    )
+    ax.set_ylim(bottom=0, top=y_nawiasu + rozstep * 3)
+    ax.set_title('Średni score w grupach')
+    ax.set_ylabel('Score (%)')
+    ax.yaxis.grid(True, linestyle='--', alpha=0.4)
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig(os.path.join(
+        KATALOG_WYNIKOW,
+        f'wykres_slupkowy_score{suffix_wykresu}.png',
+    ),
                 dpi=300, bbox_inches='tight')
     plt.close(fig)
 
 
-# Najpierw użyj wskazanych wyników scoringu.
-plik_scoringu_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu.csv')
-plik_scoringu_trap1_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_trap1.csv')
-if os.path.exists(plik_scoringu_csv) and os.path.exists(plik_scoringu_trap1_csv):
+# Preferuj świeżo wygenerowane wyniki z masek 17 i veh.
+plik_17_mask_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_17_mask.csv')
+plik_veh_mask_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_veh_mask.csv')
+if os.path.exists(plik_17_mask_csv) and os.path.exists(plik_veh_mask_csv):
+    df_17_mask = wczytaj_csv(plik_17_mask_csv)
+    df_veh_mask = wczytaj_csv(plik_veh_mask_csv)
+
+    if 'Score (%)' not in df_17_mask.columns or 'Score (%)' not in df_veh_mask.columns:
+        raise ValueError("Pliki CSV muszą zawierać kolumnę 'Score (%)'.")
+
+    print("Porównanie wyników: wyniki_scoringu_17_mask.csv i wyniki_scoringu_veh_mask.csv")
+    porownaj_grupy(
+        df_17_mask, df_veh_mask, '17', 'veh',
+        suffix_wykresu='_17_mask_vs_veh_mask',
+    )
+
+# Zachowaj obsługę wcześniejszych wyników 17aag i veh_17.
+elif os.path.exists(os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_17aag.csv')) and os.path.exists(os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_veh_17.csv')):
+    plik_scoringu_17aag_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_17aag.csv')
+    plik_scoringu_veh_17_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_veh_17.csv')
+    df_17aag = wczytaj_csv(plik_scoringu_17aag_csv)
+    df_veh_17 = wczytaj_csv(plik_scoringu_veh_17_csv)
+
+    if 'Score (%)' not in df_17aag.columns or 'Score (%)' not in df_veh_17.columns:
+        raise ValueError("Pliki CSV muszą zawierać kolumnę 'Score (%)'.")
+
+    print("Porównanie wyników: wyniki_scoringu_17aag.csv i wyniki_scoringu_veh_17.csv")
+    porownaj_grupy(
+        df_17aag, df_veh_17, '17aag', 'veh_17',
+        suffix_wykresu='_17aag_vs_veh_17',
+    )
+
+# Zachowaj obsługę pozostałych wskazanych wyników scoringu.
+elif os.path.exists(os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu.csv')) and os.path.exists(os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_trap1.csv')):
+    plik_scoringu_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu.csv')
+    plik_scoringu_trap1_csv = os.path.join(KATALOG_WYNIKOW, 'wyniki_scoringu_trap1.csv')
     df_choroba = wczytaj_csv(plik_scoringu_csv)
     df_kontrola = wczytaj_csv(plik_scoringu_trap1_csv)
 
